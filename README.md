@@ -1,6 +1,6 @@
 # DeepKnow Skill
 
-DeepKnow 知识库助手 Skill，支持知识库浏览、文件或 URL 导入、Markdown 写入、知识检索和表格原始数据查询。
+DeepKnow 知识与检索助手 Skill，支持知识库浏览、文件或 URL 导入、Markdown 写入、内部知识检索、食品伙伴网专业数据检索、受控域名实时网页检索和表格原始数据查询，当前共覆盖 20 个可调用 REST 接口。
 
 ## 安装
 
@@ -61,17 +61,19 @@ Skill 随后通过固定的 `npx skills update` 命令升级到 GitHub 最新版
 
 ```text
 skills/
-├── SKILL.md             # Skill 入口、公共调用规范和唯一版本号
-├── import.md            # 导入与内容管理 API
-├── knowledge-bases.md   # 知识库与内容浏览 API
-├── search.md            # 检索与引用规范
-└── tabular.md           # 表格查询 API
+├── SKILL.md              # Skill 入口、公共调用规范和唯一版本号
+├── external-search.md    # 食品伙伴网与受控实时网页检索 API
+├── import.md             # 导入与内容管理 API
+├── knowledge-bases.md    # 知识库与内容浏览 API
+├── search.md             # 内部知识库检索与引用规范
+└── tabular.md            # 表格查询 API
 ```
 
 ## 开发与发布
 
 - 发布版本只修改 `skills/SKILL.md` frontmatter 的 `version`，不要在其他文件复制当前版本号。
 - API 参数或工作流按能力拆分到对应 Markdown 文档，并保持现有文档格式。
+- 外部检索 API 契约只在本仓库的 `skills/external-search.md` 中维护，不再同步 backend 内置 Skill。
 - 本地安装当前工作区进行验证：
 
   ```bash
