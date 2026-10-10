@@ -58,6 +58,34 @@
 
 ## 工作流
 
+### 文件夹树：`GET /knowledge-base-folders/tree`
+
+返回 `data.folders[]` 和 `data.root_knowledge_bases[]`。文件夹节点包含 `id`、`name`、`parent_id`、`children[]`、`knowledge_bases[]`、`display_group`、`role`。
+
+```bash
+dk_api GET "knowledge-base-folders/tree"
+```
+
+按名称和父子路径定位真实文件夹 ID；重名时展示完整路径让用户选择。文件夹 ID 用于 `knowledge_base_folder_ids`，不是分类 `tag_ids`；权限由后端校验，不根据名称或树中的角色自行扩大范围。
+
+### 分块深读
+
+```bash
+# 文档 ID 用于列出该文档的文本分块
+dk_api GET "chunks/<knowledge_id>?page=1&page_size=20"
+# 分块 ID 用于读取单个分块，包括已知父分块
+dk_api GET "chunks/by-id/<chunk_id>"
+```
+
+- 列表接口 `GET /chunks/:knowledge_id` 返回 `data[]`、`total`、`page`、`page_size`；页码从 1 开始，默认每页 10 条，最多 100 条。
+- 当前列表仅返回 `text` 类型分块，不代表包含图片、表格摘要和所有其他类型的完整文档。按本次 `total` 分页，不能把第一页称为全文。
+- 单块接口 `GET /chunks/by-id/:id` 返回 `data` 对象。保留实际 `id`、`knowledge_id`、`content`、`chunk_index`、`chunk_type`、`parent_chunk_id` 等字段（以响应为准）。
+- 从检索命中取得文档和分块标识，不猜 ID；返回后核对归属。无权限或不存在时停止，不换凭据绕过。
+- 深读引用保留文档标题、真实分块 ID 和 `content` 中支持结论的原句；列表若没有标题，沿用已确认的文档标题或读取知识条目详情。
+- 按用户问题读取所需上下文，超过合理读取量时说明已读范围，不无限翻页。
+
+### 浏览与状态检查
+
 1. 用户用名称指代知识库时，先调 `GET /knowledge-bases`，按 `name` 和 `description` 匹配。
 2. 唯一匹配时继续；多个合理候选时用编号列表让用户选择。
 3. 浏览条目时使用分页接口，不把单页数量说成知识库总数；总数使用响应 `total`。

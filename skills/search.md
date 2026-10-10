@@ -7,7 +7,8 @@
 | 参数 | 说明 |
 |---|---|
 | `query` | 必填，用户的检索问题 |
-| `knowledge_base_ids` | 可选；不传时由后端按知识库名称/描述路由，并在未命中时回退到可见知识库 |
+| `knowledge_base_ids` | 可选；未指定知识库或文件夹范围时，由后端按名称/描述路由，未命中时回退到可见知识库 |
+| `knowledge_base_folder_ids` | 可选的文件夹 ID 数组；后端动态展开可访问知识库，与显式知识库 ID 取并集并去重 |
 | `tag_ids` | 可选的分类 ID 数组，硬过滤到这些分类；父分类自动展开子孙 |
 | `enable_rerank` | 是否启用 rerank |
 | `rerank_top_k` | 最终最多返回的结果数；不传时使用租户配置 |
@@ -33,8 +34,19 @@ dk_api POST "knowledge-search" \
 
 1. 用户明确指定知识库时，先用 `GET /knowledge-bases` 把名称解析为 ID。
 2. 问题包含明确国家、地区、产品、品牌或标准名时，先匹配知识库 `name` 和 `description`；一个或少数几个库明显相关时优先限定范围。
-3. 没有明确范围时可不传 `knowledge_base_ids`，使用后端默认路由。
+3. 没有明确范围时不传 `knowledge_base_ids` 和 `knowledge_base_folder_ids`，使用后端默认路由。
 4. 正常问答不要调用旧的 `GET /knowledge-bases/:id/hybrid-search`；它只用于历史兼容和检索诊断。
+
+## 文件夹范围
+
+用户指定文件夹时，先按 `knowledge-bases.md` 调用 `GET /knowledge-base-folders/tree`，结合名称和路径唯一确定 ID：
+
+```bash
+dk_api POST "knowledge-search" \
+  '{"query":"稳定性研究","knowledge_base_folder_ids":["<folder_id>"]}'
+```
+
+文件夹展开范围与显式 `knowledge_base_ids` 是并集，不是交集。用户要求“只查此文件夹”时不要额外加入其他知识库；`tag_ids` 继续对结果硬过滤。空文件夹范围不应回退全库；文件夹不存在或不可用时说明错误，不删除范围参数重试。
 
 ## 分类过滤
 
@@ -83,6 +95,10 @@ quote           = item.content 中逐字支持结论的最短原句
 - 引用至少保留 `knowledge_title + chunk_id + quote`。序号引用必须能映射回这些字段，不能只输出孤立的 `[N]`。
 - 同一分块提及多个成分、人物或事件，不代表它们具有相同作用或因果关系。原文未明示时写“证据不足”。
 - 没有足够结果时说明未检索到可靠依据，并建议调整范围或关键词；不要补写常识当作库内答案。
+
+## 命中后深读
+
+用户要求上下文或命中内容不足时，按 `knowledge-bases.md` 使用 `knowledge_id` 分页读取文本分块，或使用分块 ID／`parent_chunk_id` 读取单块。新增结论必须引用实际深读原文，不由同篇标题或相邻位置推断；文档 ID 不能代替引用的分块 ID。
 
 ## 表格命中
 

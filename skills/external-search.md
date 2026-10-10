@@ -14,7 +14,7 @@
 - 最新政策、实时信息或指定受控站点中的当前网页使用 Firecrawl。
 - 企业内部制度、项目资料或已入库内容不属于本文件范围，按 `search.md` 使用 `POST /knowledge-search`。
 
-一次只选择一个数据源。不要因空结果、待澄清状态或错误自动切换数据源，也不要自动多源混查；无法唯一判断时先让用户确认。
+一次选择一个业务入口，不因空结果、待澄清或错误自行切换入口或追加多源查询。网页服务端既有兜底不属于 Skill 自行换源；综合资料搜索按 `food-knowledge.md` 执行，用户限定来源时不以综合搜索代替。无法唯一判断时先让用户确认。
 
 ## 公共请求约束
 
@@ -150,11 +150,59 @@ dk_api POST "firecrawl/search" \
 | `limit` | 否 | 1–5 的整数，默认 5 |
 | `include_domains` | 是 | 1–100 个纯域名；服务端会规范化和去重，并校验每个域名是否在部署白名单内 |
 
-`include_domains` 不得包含协议、端口、路径、查询参数、用户凭据、IP 或通配符。以下是当前 Skill 已知的受控候选域名：
+`include_domains` 不得包含协议、端口、路径、查询参数、用户凭据、IP 或通配符。以下 49 个域名为受控候选范围，与后端配置模板的 `FIRECRAWL_ALLOWED_DOMAINS` 清单一致：
 
-- 中国官方来源：`std.samr.gov.cn`、`cfsa.net.cn`、`nifdc.org.cn`、`cnca.gov.cn`、`samr.gov.cn`、`amr.shandong.gov.cn`、`nhc.gov.cn`
-- 医学与学术来源：`pubmed.ncbi.nlm.nih.gov`、`pmc.ncbi.nlm.nih.gov`、`pubchem.ncbi.nlm.nih.gov`、`www.ncbi.nlm.nih.gov`、`academic.oup.com`、`ods.od.nih.gov`、`usp.org`
-- 国际及境外官方来源：`fda.gov`、`elegislation.gov.hk`、`drugoffice.gov.hk`、`cfs.gov.hk`、`medsafe.govt.nz`、`legislation.govt.nz`、`mpi.govt.nz`、`foodcomposition.co.nz`、`foodstandards.gov.au`、`inspection.canada.ca`、`fao.org`、`wto.org`、`hsa.gov.sg`、`mfds.go.kr`、`caa.go.jp`、`mhlw.go.jp`、`maff.go.jp`
+```text
+pubmed.ncbi.nlm.nih.gov
+pmc.ncbi.nlm.nih.gov
+pubchem.ncbi.nlm.nih.gov
+www.ncbi.nlm.nih.gov
+academic.oup.com
+fda.gov
+std.samr.gov.cn
+cfsa.net.cn
+nifdc.org.cn
+cnca.gov.cn
+samr.gov.cn
+amr.shandong.gov.cn
+nhc.gov.cn
+ods.od.nih.gov
+usp.org
+elegislation.gov.hk
+drugoffice.gov.hk
+cfs.gov.hk
+medsafe.govt.nz
+legislation.govt.nz
+mpi.govt.nz
+foodcomposition.co.nz
+foodstandards.gov.au
+inspection.canada.ca
+fao.org
+wto.org
+hsa.gov.sg
+mfds.go.kr
+caa.go.jp
+mhlw.go.jp
+maff.go.jp
+api.crossref.org
+laws.e-gov.go.jp
+eur-lex.europa.eu
+www.legislation.gov.au
+www.sfa.gov.sg
+isomer-user-content.by.gov.sg
+herbcomb.com
+hpo.jax.org
+www.symmap.org
+bidd.group
+cbcb.cdutcm.edu.cn
+tcmssd.ratcm.cn
+opentargets.org
+stitch-db.org
+string-db.org
+ctdbase.org
+bionet.ncpsb.org.cn
+www.bindingdb.org
+```
 
 服务端部署时的 `FIRECRAWL_ALLOWED_DOMAINS` 是最终白名单，并允许其中域名的子域名。若服务端拒绝上述候选域名，不要改用其他域名重试或尝试绕过；应使用中文说明 Skill 候选清单与服务端配置可能需要同步。
 
@@ -179,9 +227,24 @@ dk_api POST "firecrawl/search" \
 
 - 只根据返回结果项中的内容陈述事实，保持数组顺序，不补写未返回的信息。
 - 事实性结论就近标注来源，并在回答末尾使用同一结果项返回的标题和 `url` 生成 Markdown 链接。
-- 只能引用过滤后的 `response.data.data.web[].url`。不得把 `markdown`、正文、metadata 或其他字段中出现的链接当作来源。
+- 普通网页结果只能引用过滤后的 `response.data.data.web[].url`。不得把 `markdown`、正文、metadata 或其他字段中出现的链接当作来源。
 - 不得猜测、拼接或编造 URL；结果项没有有效 `url` 时，不为它生成来源链接。
-- 结果为空时如实说明未在本次受控域名范围内找到结果，不自动换源。
+- 普通结果为空且无下述备用记录时，如实说明未在本次受控域名范围内找到结果，不自动换源。
+
+### 服务端备用来源
+
+主 MCP 启用备用能力后，搜索额度耗尽或搜索为空时可能由服务端查询 Food Knowledge。仍是本次 REST 响应，不需要 Skill 追加请求。
+
+外层 `source: "web"` 不保证每条记录来自普通网页搜索；出现 `response.data.retrieval` 时读取：
+
+- `provider` 为 `food_knowledge`；`reason` 为 `FIRECRAWL_QUOTA_EXHAUSTED`（额度耗尽）或 `FIRECRAWL_EMPTY_RESULT`（搜索为空）。
+- 空结果原因只对应 `operation=search`。不要根据底层 `detail` 标记推断当前 REST 接口支持 URL 读取；请求仍禁止 URL。
+- `status` 为 `complete`、`partial` 或 `empty`；部分结果应说明覆盖不完整。`tools` 仅用于内部诊断，不作为业务证据。
+- 备用记录位于 `response.data.data.records[]`，可能与 `web[]` 同时出现。记录包含 `provider`、`source_domain`、`title`、`data` 和可选 `url`；事实只能来自该记录实际的 `data`。
+- 同时读取 `response.data.warnings` 和 `response.data.limitations`，保留影响结论的限制，不把关联、预测或历史记录解释为因果、疗效或当前审批。
+- 仅引用过滤后的 `web[].url` 或备用记录顶层 `records[].url`。不把记录内部正文或 `data` 中的任意链接当作已校验来源。
+- 无 URL 的记录可以按标题、来源域名及实际记录标识说明来源，但不能拼接链接。不能把有备用记录、无 `web` 的响应说成完全无结果。
+- 状态说明的是上游执行情况；后端还会过滤来源，回答以最终保留的数据为准。不要将备用记录称为已读取网页全文。
 
 ## 错误处理
 
@@ -196,5 +259,7 @@ dk_api POST "firecrawl/search" \
 | `500` | FoodPartner 返回不可重试的工具错误 | 停止并说明服务执行失败 |
 | `503` | 外部检索服务、配置或网关暂时不可用 | 相同参数最多重试一次，仍失败则停止 |
 | `504` | 外部检索超时 | 相同参数最多重试一次，仍失败则停止 |
+
+HTTP 503／业务码 1008 是通用不可用错误，可能涉及配置、服务间认证、连接、额度或响应兼容，不能仅凭该错误断言“所有鉴权通过，等待即可恢复”。不要索取或展示下游凭据。
 
 收到 `426 Upgrade Required` 时仍按 `SKILL.md` 的自动升级规则处理。任何重试都不得超过一次，不得并发重试或在 FoodPartner、Firecrawl、内部知识库之间自动切换。

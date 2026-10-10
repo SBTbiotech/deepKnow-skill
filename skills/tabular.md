@@ -10,6 +10,7 @@
 
 | 接口 | 用途 |
 |---|---|
+| `POST /knowledge-bases/:id/tabular-query` | 将自然语言问题转换为后端校验的受限查询计划并执行 |
 | `GET /knowledge-bases/:id/tabular-assets` | 列出知识库下的表格资产 |
 | `GET /tabular-assets/:asset_id` | 获取资产详情和子表清单 |
 | `GET /tabular-tables/:table_id/schema` | 获取列白名单、类型和统计信息 |
@@ -18,12 +19,32 @@
 
 ## 工作流
 
+用户已指定知识库但未明确表或列时，可先使用下文自然语言查询；表、列和过滤条件已确定时，继续使用以下 schema → rows 流程。两种方式都只使用实际数据，不发送 SQL。
+
 1. 优先从命中项 `chunk_metadata.table_id` 或 `asset_id` 取得标识。
 2. `table_column` 没有足够元数据时，可通过 `parent_chunk_id` 追回对应 `table_summary`。
 3. 只有 `asset_id` 时，调 `GET /tabular-assets/:asset_id` 获取子表清单。
 4. 调 `GET /tabular-tables/:table_id/schema`。查询参数中的列名必须取自 `columns[].canonical_name`；展示时使用 `display_name`。
 5. 用受控 DSL 调 rows 接口；不得发送原始 SQL，不得使用 schema 白名单之外的列。
 6. 需要查看原始布局、合并单元格或不规则报表时使用 source-preview。
+
+## 自然语言查询
+
+```bash
+dk_api POST "knowledge-bases/<kb_id>/tabular-query" \
+  '{"query":"华东区销售额最高的产品是什么？"}'
+```
+
+只传非空 `query`，知识库 ID 必须已确认；需要该库查看权限。后端使用知识库配置的模型规划并校验，不接受调用方 SQL、模型凭据或存储路径。
+
+读取 `response.data.status`：
+
+- `completed`：读取 `plan` 和 `results[]`，按真实结果回答；说明所用表、字段、过滤和统计口径，不把计划本身当结果。
+- `clarification`：按 `clarification` 追问最少信息，收到补充后更新问题；不能把候选计划当已执行。
+- `no_table`：该范围没有可查询表，说明未获得表格数据，不改查其他知识库。
+- 未知状态或结果缺失：说明响应不足，不猜数值、不循环重试。
+
+`plan` 可能包含 `table_id`、`operation`、`column`、`columns`、`aggregate`、`filters`、`group_by`、`sort_by`、`sort_direction`、`limit`；`results` 使用后端检索结果结构。只解释实际返回的字段，保留可复核的表标识；区分后端计算结果、原始行和 AI 摘要。
 
 ## Schema 与行查询
 
