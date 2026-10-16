@@ -1,6 +1,63 @@
 # food-knowledge — 外部资料搜索与证据读取
 
-通过后端 REST 复用独立主 MCP 的已接入来源。普通问题使用带 `scenario` 的搜索，再按需读取真实摘要、标准条款或政策正文。所有请求沿用 `SKILL.md` 的固定基础地址、鉴权、渠道和版本头。
+专业来源通过后端 REST 复用独立主 MCP，使用带 `scenario` 的搜索，再按需读取真实摘要、标准条款或政策正文。公众号文章知识库、食品伙伴网和受控网页按下方说明使用各自已有入口。所有请求沿用 `SKILL.md` 的固定基础地址、鉴权、渠道和版本头。
+
+## 业务分类与来源说明
+
+业务分类用于理解用户所说的来源范围，不等于接口的 `scenario` 或 MCP 功能分组。下表沿用产品的分类；同一来源可以服务多个主题，但不因此扩大用户限定范围或重复查询。
+
+| 业务分类 | 来源范围 | 使用说明 |
+|---|---|---|
+| 学术文献 | PubMed（`pubmed`）、PubChem（`pubchem`）、IJFST（`ijfst`） | 论文与摘要选 PubMed、IJFST；化合物身份、结构及属性选 PubChem。化合物记录不是论文。 |
+| 原料 / 成分 / 标准 | GRAS、全国标准信息公共服务平台、CFSA、食品伙伴网、中检院 NIFDC、CNCA | 区分原料监管、标准原文、结构化使用规则、标准物质公告和认证认可法规；来源 ID 见下表，食品伙伴网沿用独立入口。 |
+| 公告 / 抽检 | 国家市场监管总局、山东省市场监督管理局、国家卫健委、食药监不合格食品信息 | 按全国或地方范围及公告主题选择；不合格食品限定总局抽检信息，批次和检测项目仅以实际返回内容为准。 |
+| 海外法规官网 | 美国 FDA、NIH-ODS、USP、香港、新西兰、澳新 FSANZ、加拿大 CFIA、国际标准 Codex、新加坡 HSA、韩国 MFDS、日本 | 先确定国家或地区，再按法规、标签、添加剂、营养等主题选择下表中的来源；国际标准与各地法规分别说明。 |
+| 植提化合物 | COCONUT（`coconut`）、NPASS（`npass`）、BATMAN-TCM（`batman`）、SymMap（`symmap`） | COCONUT 查天然产物身份与结构；NPASS 查实验活性与物种来源；BATMAN-TCM、SymMap 查成分、靶点等关联，区分预测与实验依据。 |
+| 靶点 / 蛋白 / 基因 | ChEMBL（`chembl`）、BindingDB（`bindingdb`）、STITCH（`stitch`）、STRING（`string_db`）、Open Targets（`opentargets`）、HPO（`hpo`）、CTD（`ctd`） | 分别用于实验活性、结合数据、化合物与蛋白关联、蛋白网络、靶点疾病证据、表型术语、化学物质与基因疾病关联；关联不等于因果或疗效。 |
+| 通路与关联 | Reactome（`reactome`） | 查通路、参与分子和生物过程，核对物种及实体标识。 |
+| TCM / 天然产物专用集成知识图谱 | HerbComb（`herbcomb`）、TCM-ID（`tcmid`）、TCMKD（`tcmkd`）、TCMSSD（`tcmssd`） | 查药材、方剂、成分及关联实体；按来源实际支持的实体类型查询，保留原始证据出处。 |
+| 公众号文章知识库 | 存放外部公众号文章、当前用户有权限访问的知识库 | 在相关知识库中检索已有文章，按需读取正文并提供来源；已入库不改变其外部来源属性。按下方知识库流程执行。 |
+
+### 来源名称与检索范围
+
+以下专业来源 ID 可用于证据接口的 `source_ids`，但不表示当前部署必然启用，也不保证支持该机构全部业务。前端卡片名称或别名不能直接作为来源 ID。表中多个 ID 是候选范围，按问题选择；没有列出专业 ID 的官网按 `external-search.md` 的受控网页流程执行，不构造 ID。
+
+| 来源名称（前端别名） | 专业来源 ID 或已有入口 | 使用范围 |
+|---|---|---|
+| GRAS（`fda-gras`） | `us_fda_gras` | GRAS 通知及详情；数据库收录不等于批准。 |
+| 全国标准信息公共服务平台（`national-standards`） | `cn_samr_national_standards` | 已接入的国家标准目录与详情，不承诺覆盖所有行业、企业标准。 |
+| CFSA（`cfsa`） | `cn_cfsa_food_standards` | 食品安全国家标准、正文及勘误。 |
+| 食品伙伴网（`foodpartner`） | `external-search.md` 的 `/foodpartner/search`、`/foodpartner/fetch` | 结构化专业规则；其来源 ID 必须取自该接口返回的候选，不使用本表的 MCP ID。 |
+| 中检院（`nifdc`） | `cn_nifdc_reference_material_notices` | 已接入的标准物质相关公告，不代表全部检验方法或标准品库存。 |
+| 国家认监委（`cnca`） | `cn_cnca_regulations` | 认证认可相关法规。 |
+| 市场监管总局（`samr`）、食药监不合格食品信息（`samr-unqualified-food`） | `cn_samr_food_safety` | 前者包含已接入的抽检公告与检验方法；后者仅取不合格食品抽检相关内容，不因共用来源扩大主题。 |
+| 山东省市场监管局（`shandong-amr`） | `cn_shandong_samr_food_safety` | 山东食品抽检与相关公告。 |
+| 国家卫健委（`nhc`） | `cn_nhc_food_policy` | 已接入的食品政策公告、解读及附件，不代表全部卫生健康信息。 |
+| 美国 FDA（`us-fda`） | `us_fda_gras`、`us_fda_scogs`、`us_fda_color_additives`、`us_fda_substances_added_to_food`、`us_fda_food_contact_notifications`、`us_fda_bam`、`openfda` | 按 GRAS、SCOGS 安全评估、色素、食品添加物、食品接触材料、检验方法、召回或不良事件选择。 |
+| 美国 NIH-ODS（`nih-ods`） | `dsld`、`nih_ods_dri` | 分别查询补充剂标签、营养素参考上限；其他官网资料按批准范围检索。 |
+| 美国 USP（`usp`） | 受控官网 `usp.org` | 公开的药典与原料质量标准资料，不承诺取得付费全文。 |
+| 香港（`hong-kong`） | `hk_elegislation`、`hk_drug_office`、`hk_cfs` | 分别查询法例、药品注册资料、食品安全资料。 |
+| 新西兰（`new-zealand`） | `nz_legislation`、`nz_medsafe`、`nz_food_composition`；MPI 网页按批准范围使用 `mpi.govt.nz` | 分别查询法例、召回信息、食品成分和 MPI 官网资料，不推断产品准入。 |
+| 澳新 FSANZ（`fsanz`） | `fsanz_standards` | 澳新食品标准目录；涉及关联法规正文时保持用户批准范围，不能自动扩大到其他来源。 |
+| 加拿大 CFIA（`cfia`） | `ca_cfia_food_labelling`、`ca_cfia_incorporated_reference`、`ca_cfia_food_import_requirements` | 分别查询标签指导、引用文件、食品进口要求。 |
+| 国际标准 Codex（`codex`） | 受控官网 `fao.org`、`wto.org` | 区分 Codex 食品标准与 WTO 的 TBT/SPS 资料，不把两者当作同一种标准。 |
+| 新加坡 HSA（`singapore-hsa`） | `sg_hsa_vns` | 已接入的健康产品通知资料，不等于注册批准，也不自动包含 SFA。 |
+| 韩国 MFDS（`korea-mfds`） | 受控官网 `mfds.go.kr` | 公开的食品及保健功能食品相关资料。 |
+| 日本（`japan`） | `jp_caa_ffc`、`jp_caa_foshu`、`jp_mhlw_food_additives`、`jp_maff_jas` | 分别查询功能性标示食品、特定保健用食品、添加剂使用标准、JAS 标准。 |
+
+其他已接入专业来源包括临床试验注册 `clinicaltrials`、`euctr`，欧盟法规 `eurlex`，澳大利亚法例 `au_legislation`，日本 e-Gov 法令 `japan_egov`，新加坡食品安全 `sg_sfa`。它们未作为独立卡片列入上述分类；用户明确需要相应资料时可在获准范围内选择，不自动补入“学术文献”“新加坡 HSA”等范围。
+
+选择专业来源后，按资料类型设置 `scenario`，并用 `source_ids` 保留选定范围。例如，学术文献中的论文使用 `literature` 与 `pubmed` / `ijfst`，化合物资料使用 `general` 与 `pubchem`。业务分类不是同时查询全部成员的指令；无法确定必要范围时再澄清。API、网页解析等实际取数方式仍由服务端决定，不能从前端展示字段推断，也不因来源失败自行换入口。
+
+### 公众号文章知识库
+
+这是存放外部公众号文章的知识库。用户明确要求检索公众号资料时：
+
+1. 按 `knowledge-bases.md` 使用用户已明确提供的知识库 ID，或通过 `GET /knowledge-bases` 的真实名称、描述确认目标库；无法确定或存在多个有歧义的候选时向用户确认，不把全部可见知识库都视为公众号知识库。
+2. 按 `search.md` 调用 `POST /knowledge-search`，通过 `knowledge_base_ids` 明确限定已确认的知识库。找不到相关库、无权限或没有结果时说明情况，不省略范围回退到全库，也不改用无来源限制的综合检索。
+3. 需要上下文时，按 `knowledge-bases.md` 使用命中的真实文档或分块 ID 深读。沿用知识库引用规则，保留标题、分块 ID 和原文依据；公众号名称或文章原始链接仅在实际返回时提供，不编造。
+
+已入库不改变外部来源属性；该流程只查询库内已有文章，不表示全网公众号搜索，不构造新的 MCP 来源 ID，也不假定知识库接口支持前端公众号专用的分组或账号参数。
 
 ## 搜索证据
 
